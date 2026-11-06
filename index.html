@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Hitung sisa kilometer sebelum ganti oli dan servis CVT motor matic.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23c8102e'/%3E%3Cpath d='M16 16 L23 9' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>Pengingat Servis Matik</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column like a motor's instrument panel — inputs on top, two gauges below */
+:root {
+  --bg: #eef0f2;
+  --panel: #ffffff;
+  --fg: #1b1f24;
+  --muted: #5d6670;
+  --line: #d6dbe0;
+  --accent: #c8102e;
+  --track: #e3e7eb;
+  --ok: #1f8a4c;
+  --warn: #c77700;
+  --bad: #c8102e;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121519; --panel: #1b2026; --fg: #e9edf1; --muted: #9aa4ae; --line: #2c333b;
+    --accent: #ff4a5f; --track: #2a3139; --ok: #47c47e; --warn: #f0a635; --bad: #ff4a5f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121519; --panel: #1b2026; --fg: #e9edf1; --muted: #9aa4ae; --line: #2c333b;
+  --accent: #ff4a5f; --track: #2a3139; --ok: #47c47e; --warn: #f0a635; --bad: #ff4a5f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-direction: column; gap: 2px; }
+.eyebrow { font-family: var(--font-display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-family: var(--font-display); font-size: 28px; line-height: 1.15; margin: 0; font-weight: 700; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; font-size: 14px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.odo { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); overflow: hidden; }
+.odo:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.odo input {
+  flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg);
+  font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: .06em;
+  padding: 10px 12px; font-variant-numeric: tabular-nums; outline: none;
+}
+.odo span { font-family: var(--font-display); font-size: 13px; color: var(--muted); padding-right: 12px; }
+.current .odo { border-color: var(--accent); }
+.current .odo input { font-size: 30px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+.gauge { display: flex; flex-direction: column; gap: 10px; }
+.gauge-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.gauge-title { font-weight: 600; font-size: 15px; }
+.interval { font-size: 12px; color: var(--muted); font-family: var(--font-display); letter-spacing: .04em; }
+.remain { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.remain b { font-family: var(--font-display); font-size: 40px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.remain small { color: var(--muted); font-size: 14px; }
+.bar { height: 10px; background: var(--track); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--ok); transition: width .4s ease; }
+.meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; border: 1px solid currentColor; }
+.s-ok { color: var(--ok); } .s-warn { color: var(--warn); } .s-bad { color: var(--bad); }
+.done-btn {
+  align-self: flex-start; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg);
+  background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+}
+.done-btn:hover { border-color: var(--accent); color: var(--accent); }
+.done-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.err { color: var(--bad); font-size: 13px; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+<style>body{margin:0} [hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pengingat Servis</h1>
+    <p class="sub">Ketik angka odometer sekarang, sisa kilometernya langsung muncul.</p>
+  </header>
+
+  <section class="panel">
+    <div class="field current">
+      <label for="km-now">Odometer sekarang</label>
+      <div class="odo"><input id="km-now" type="text" inputmode="numeric" autocomplete="off"><span>KM</span></div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="km-oli">Terakhir ganti oli</label>
+        <div class="odo"><input id="km-oli" type="text" inputmode="numeric" autocomplete="off"><span>KM</span></div>
+      </div>
+      <div class="field">
+        <label for="km-cvt">Terakhir servis CVT</label>
+        <div class="odo"><input id="km-cvt" type="text" inputmode="numeric" autocomplete="off"><span>KM</span></div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="int-oli">Ganti oli tiap</label>
+        <div class="odo"><input id="int-oli" type="text" inputmode="numeric" autocomplete="off"><span>KM</span></div>
+      </div>
+      <div class="field">
+        <label for="int-cvt">Servis CVT tiap</label>
+        <div class="odo"><input id="int-cvt" type="text" inputmode="numeric" autocomplete="off"><span>KM</span></div>
+      </div>
+    </div>
+    <p class="note" id="sample-note">Angka di atas masih contoh. Ganti dengan angka motormu, nanti tersimpan otomatis di HP ini.</p>
+  </section>
+
+  <section class="panel gauge" id="g-oli">
+    <div class="gauge-head"><span class="gauge-title">Ganti oli mesin</span><span class="interval" data-int></span></div>
+    <div class="remain"><b data-r>–</b><small data-u>km lagi</small></div>
+    <div class="bar"><i data-bar></i></div>
+    <div class="meta"><span data-due></span><span class="pill" data-pill></span></div>
+    <button class="done-btn" type="button" data-done="oli">Sudah ganti oli di KM ini</button>
+  </section>
+
+  <section class="panel gauge" id="g-cvt">
+    <div class="gauge-head"><span class="gauge-title">Servis CVT + injeksi</span><span class="interval" data-int></span></div>
+    <div class="remain"><b data-r>–</b><small data-u>km lagi</small></div>
+    <div class="bar"><i data-bar></i></div>
+    <div class="meta"><span data-due></span><span class="pill" data-pill></span></div>
+    <button class="done-btn" type="button" data-done="cvt">Sudah servis CVT di KM ini</button>
+  </section>
+
+  <p class="note">Rumus: (KM terakhir servis + jarak interval) − KM sekarang. Jarak interval tiap motor bisa beda, cek buku servis motormu.</p>
+</div>
+
+<script>
+(function () {
+  const KEY = "servis-matik";
+  const SAMPLE = { now: 25300, oli: 24000, cvt: 22000, intOli: 2000, intCvt: 4000 };
+  const items = { oli: { ik: "intOli", def: 2000, el: document.getElementById("g-oli") }, cvt: { ik: "intCvt", def: 4000, el: document.getElementById("g-cvt") } };
+  const inp = { now: document.getElementById("km-now"), oli: document.getElementById("km-oli"), cvt: document.getElementById("km-cvt"), intOli: document.getElementById("int-oli"), intCvt: document.getElementById("int-cvt") };
+  const fmt = n => n.toLocaleString("id-ID");
+  const parse = s => { const d = String(s).replace(/\D/g, ""); return d === "" ? null : parseInt(d, 10); };
+
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+  const start = Object.assign({}, SAMPLE, saved || {});
+  if (saved) { if (saved.intOli == null) start.intOli = 2000; if (saved.intCvt == null) start.intCvt = 4000; }
+  document.getElementById("sample-note").hidden = !!saved;
+  for (const k in inp) inp[k].value = start[k] != null ? fmt(start[k]) : "";
+
+  function save() {
+    const data = {}; for (const k in inp) data[k] = parse(inp[k].value);
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function render() {
+    const now = parse(inp.now.value);
+    for (const k in items) {
+      const { ik, def, el } = items[k];
+      const int = parse(inp[ik].value) || def;
+      el.querySelector("[data-int]").textContent = "TIAP " + fmt(int) + " KM";
+      const last = parse(inp[k].value);
+      const r = el.querySelector("[data-r]"), u = el.querySelector("[data-u]"), bar = el.querySelector("[data-bar]"),
+            due = el.querySelector("[data-due]"), pill = el.querySelector("[data-pill]");
+      if (now == null || last == null) {
+        r.textContent = "–"; u.textContent = "isi angka KM dulu"; bar.style.width = "0"; due.textContent = ""; pill.textContent = ""; pill.className = "pill"; continue;
+      }
+      if (last > now) {
+        r.textContent = "–"; u.textContent = "KM terakhir servis lebih besar dari KM sekarang, cek lagi angkanya";
+        bar.style.width = "0"; due.textContent = ""; pill.textContent = ""; pill.className = "pill"; continue;
+      }
+      const target = last + int, remain = target - now, used = Math.min(1, (now - last) / int);
+      bar.style.width = (used * 100).toFixed(1) + "%";
+      due.textContent = "Jatuh tempo di KM " + fmt(target);
+      let s, label;
+      if (remain < 0) { s = "bad"; label = "Sudah lewat"; r.textContent = fmt(-remain); u.textContent = "km lewat dari jadwal"; }
+      else { r.textContent = fmt(remain); u.textContent = "km lagi";
+        if (remain <= int * 0.15) { s = "warn"; label = "Segera"; } else { s = "ok"; label = "Aman"; } }
+      if (remain === 0) { s = "bad"; label = "Hari ini"; }
+      bar.style.background = "var(--" + s + ")";
+      pill.textContent = label; pill.className = "pill s-" + s;
+    }
+  }
+
+  for (const k in inp) {
+    inp[k].addEventListener("input", e => {
+      const n = parse(e.target.value);
+      e.target.value = n == null ? "" : fmt(n);
+      document.getElementById("sample-note").hidden = true;
+      save(); render();
+    });
+  }
+  document.querySelectorAll("[data-done]").forEach(b => b.addEventListener("click", () => {
+    const now = parse(inp.now.value); if (now == null) return;
+    inp[b.dataset.done].value = fmt(now);
+    document.getElementById("sample-note").hidden = true;
+    save(); render();
+  }));
+  render();
+})();
+</script>
+</body>
+</html>
